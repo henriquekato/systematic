@@ -23,8 +23,8 @@ jobs:
       - name: Start MongoDB with Docker Compose
         run: docker-compose up -d
 
-      - name: Install Dependencies
-        run: mvn clean install
+      - name: Install Dependencies with Extended Output Mode
+        run: mvn clean install -e
 
       - name: Run Tests
         run: |
@@ -34,4 +34,4 @@ jobs:
       - name: Build with Maven
         run: |
           mvn package 
-          echo "Hello, world!"
+          echo "Success!"
