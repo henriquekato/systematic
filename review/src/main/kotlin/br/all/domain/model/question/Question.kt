@@ -1,6 +1,5 @@
 package br.all.domain.model.question
 
-import br.all.domain.model.protocol.ProtocolId
 import br.all.domain.model.review.SystematicStudyId
 import br.all.domain.model.study.Answer
 import br.all.domain.shared.ddd.Entity
@@ -30,4 +29,6 @@ abstract class Question<T>(
     }
 
     abstract fun answer(value: T): Answer<T>
+
+    companion object
 }

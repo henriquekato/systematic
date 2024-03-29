@@ -7,23 +7,26 @@ import br.all.application.study.find.service.FindStudyReviewService
 import br.all.application.study.update.implementation.UpdateStudyReviewExtractionService
 import br.all.application.study.update.implementation.UpdateStudyReviewPriorityService
 import br.all.application.study.update.implementation.UpdateStudyReviewSelectionService
+import br.all.application.study.update.interfaces.AnswerExtractionQuestionService
 import br.all.application.study.update.interfaces.MarkAsDuplicatedService
 import br.all.application.study.update.interfaces.UpdateStudyReviewService
 import br.all.study.presenter.*
+import com.fasterxml.jackson.annotation.JsonSubTypes
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
-import org.springframework.data.mongodb.core.query.Update
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.util.*
-import br.all.application.study.update.interfaces.MarkAsDuplicatedService.RequestModel as DuplicatedRequest
 import br.all.application.study.create.CreateStudyReviewService.RequestModel as CreateRequest
-import br.all.application.study.update.interfaces.UpdateStudyReviewService.RequestModel as UpdateRequest
-import br.all.application.study.find.service.FindAllStudyReviewsService.RequestModel as FindAllRequest
 import br.all.application.study.find.service.FindAllStudyReviewsBySourceService.RequestModel as FindAllBySourceRequest
+import br.all.application.study.find.service.FindAllStudyReviewsService.RequestModel as FindAllRequest
 import br.all.application.study.find.service.FindStudyReviewService.RequestModel as FindOneRequest
+import br.all.application.study.update.interfaces.AnswerExtractionQuestionService.RequestModel as ExtractionAnswerRequest
+import br.all.application.study.update.interfaces.MarkAsDuplicatedService.RequestModel as DuplicatedRequest
+import br.all.application.study.update.interfaces.UpdateStudyReviewService.RequestModel as UpdateRequest
 import br.all.application.study.update.interfaces.UpdateStudyReviewStatusService.RequestModel as UpdateStatusRequest
 
 @RestController
@@ -37,7 +40,8 @@ class StudyReviewController(
     val updateSelectionService: UpdateStudyReviewSelectionService,
     val updateExtractionService: UpdateStudyReviewExtractionService,
     val updateReadingPriorityService: UpdateStudyReviewPriorityService,
-    val markAsDuplicatedService: MarkAsDuplicatedService
+    val markAsDuplicatedService: MarkAsDuplicatedService,
+    val answerExtractionQuestionService: AnswerExtractionQuestionService,
 ) {
 
     @PostMapping("/study-review")
@@ -189,4 +193,58 @@ class StudyReviewController(
         markAsDuplicatedService.markAsDuplicated(presenter, request)
         return presenter.responseEntity?: ResponseEntity<Void>(HttpStatus.INTERNAL_SERVER_ERROR)
     }
+
+    @PatchMapping("study-review/{studyReviewId}/extraction-answer")
+    fun extractionAnswer(
+        @PathVariable researcherId: UUID,
+        @PathVariable systematicStudy: UUID,
+        @PathVariable studyReviewId: Long,
+        @RequestBody request: AnswerRequest,
+    ): ResponseEntity<*> {
+        val presenter = RestfulAnswerExtractionQuestionPresenter()
+        val requestModel = request.toExtractionAnswerRequest(researcherId, systematicStudy, studyReviewId)
+
+        answerExtractionQuestionService.answer(presenter, requestModel)
+        return presenter.responseEntity ?: ResponseEntity<Void>(HttpStatus.INTERNAL_SERVER_ERROR)
+    }
+
+    @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXTERNAL_PROPERTY, property = "type", visible = true)
+    @JsonSubTypes(
+        JsonSubTypes.Type(value = TextualAnswerRequest::class, name = "TEXTUAL"),
+        JsonSubTypes.Type(value = PickListAnswerRequest::class, name = "PICK_LIST"),
+        JsonSubTypes.Type(value = LabeledScaleRequest::class, name = "LABELED_SCALE"),
+        JsonSubTypes.Type(value = NumberScaleRequest::class, name = "NUMBER_SCALE"),
+    )
+    abstract class AnswerRequest(
+        val questionId: UUID,
+        val type: String,
+        open val answer: Any,
+    ) {
+        fun toExtractionAnswerRequest(researcher: UUID, systematicStudy: UUID, studyReview: Long) =
+            ExtractionAnswerRequest(researcher, systematicStudy, studyReview, questionId, type, answer)
+    }
+
+    class TextualAnswerRequest(
+        questionId: UUID,
+        type: String,
+        override val answer: String
+    ) : AnswerRequest(questionId, type, answer)
+
+    class PickListAnswerRequest(
+        questionId: UUID,
+        type: String,
+        override val answer: String
+    ) : AnswerRequest(questionId, type, answer)
+
+    class LabeledScaleRequest(
+        questionId: UUID,
+        type: String,
+        override val answer: String,
+    ) : AnswerRequest(questionId, type, answer)
+
+    class NumberScaleRequest(
+        questionId: UUID,
+        type: String,
+        override val answer: String,
+    ) : AnswerRequest(questionId, type, answer)
 }
